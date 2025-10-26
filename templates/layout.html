@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Absensi Wajah</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { alexandria: ["Alexandria", "sans-serif"] },
+        },
+      },
+    };
+  </script>
+</head>
+
+<body class="flex flex-col items-center h-screen bg-[#070811] text-white font-alexandria">
+  <!-- Header -->
+  <div class="mt-12 h-16 w-5/6 bg-[#070811] flex items-center justify-center rounded-full border-2 border-[#22636f] text-lg font-extrabold relative">
+    Live Absensi
+    <span class="absolute items-center ml-40 h-4 w-4 bg-red-500 rounded-full animate-ping"></span>
+    <span class="absolute items-center ml-40 h-4 w-4 bg-red-500 rounded-full"></span>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="mt-8 h-4/5 w-5/6 grid grid-cols-2 gap-6">
+    <!-- Camera Section -->
+    <div class="border-2 border-[#22636f] rounded-lg p-6">
+      <h2 class="ml-12 mt-8 text-xl font-bold">Surabaya</h2>
+      <p id="currentDate" class="ml-12 text-sm text-[#32c9c9]"></p>
+
+      <div class="flex items-center justify-between mx-12 mt-8">
+        <div>
+          <label for="cameraSelect" class="mr-2">Pilih Kamera:</label>
+          <select id="cameraSelect" class="text-black px-2 py-1 rounded-md">
+            <option value="0">Kamera 1</option>
+            <option value="1">Kamera 2</option>
+            <option value="2">Kamera 3</option>
+            <option value="3">Kamera 4</option>
+            <option value="4">Kamera 5</option>
+          </select>
+        </div>
+        <span id="cameraTime" class="text-[#32c9c9]"></span>
+      </div>
+
+      <div class="mx-12 border-2 border-[#22636f] rounded-lg h-96 flex justify-center items-center mt-4">
+        <img id="videoStream" src="/video_feed/0" alt="Live Camera" class="h-full w-full object-cover rounded-lg" />
+      </div>
+
+      <div class="flex flex-col items-center mt-4">
+        <label for="toggleCamera" class="relative inline-flex items-center cursor-pointer">
+          <span class="ml-6 mr-3 font-semibold text-xl">Kamera</span>
+          <input type="checkbox" id="toggleCamera" class="sr-only peer" checked />
+          <div class="relative w-11 h-5 bg-gray-200 rounded-full peer peer-checked:bg-[#32c9c9] after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+        </label>
+        <p class="mt-2 text-sm" id="cameraStatus">Kamera Sedang Menyala</p>
+      </div>
+    </div>
+
+    <!-- Summary Section -->
+    <div class="border-2 border-[#22636f] rounded-lg p-6 overflow-y-auto">
+      <h2 class="mt-8 text-2xl font-bold text-center">Summary</h2>
+      <p class="ml-12 mt-8 text-lg">Daftar absensi terbaru (pending):</p>
+      <div class="overflow-x-auto mt-8">
+        <table class="min-w-full text-sm text-center text-black bg-white rounded-lg overflow-hidden font-alexandria">
+          <thead>
+            <tr class="bg-[#070811] text-white">
+              <th class="border border-gray-400 px-4 py-2">Nama</th>
+              <th class="border border-gray-400 px-4 py-2">Waktu</th>
+              <th class="border border-gray-400 px-4 py-2">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="pendingBody">
+            <tr><td colspan="3" class="px-4 py-2">Memuat...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const toggle = document.getElementById("toggleCamera");
+  const statusText = document.getElementById("cameraStatus");
+  const videoStream = document.getElementById("videoStream");
+  const cameraSelect = document.getElementById("cameraSelect");
+
+  function updateVideoSource() {
+    const cameraNum = cameraSelect.value;
+    videoStream.src = `/video_feed/${cameraNum}`;
+  }
+
+  cameraSelect.addEventListener("change", () => {
+    if (toggle.checked) updateVideoSource();
+  });
+
+  toggle.addEventListener("change", () => {
+    if (toggle.checked) {
+      updateVideoSource();
+      statusText.textContent = "Kamera Sedang Menyala";
+    } else {
+      videoStream.src = "";
+      statusText.textContent = "Kamera Sedang Dimatikan";
+    }
+  });
+
+  async function loadPending() {
+    try {
+      const res = await fetch('/pending');
+      const data = await res.json();
+      const tbody = document.getElementById('pendingBody');
+      tbody.innerHTML = '';
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-2">Tidak ada data</td></tr>';
+        return;
+      }
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="border border-gray-400 px-4 py-2">${row.nama}</td>
+          <td class="border border-gray-400 px-4 py-2">${row.timestamp}</td>
+          <td class="border border-gray-400 px-4 py-2">
+            <button class="bg-green-600 text-white px-3 py-1 rounded" onclick="confirmRow('${row.nama}','${row.timestamp}')">Centang</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  async function confirmRow(nama, timestamp) {
+    try {
+      const res = await fetch('/confirm', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({nama, timestamp})
+      });
+      const j = await res.json();
+      if (j.ok) loadPending();
+    } catch(e) { console.error(e); }
+  }
+
+  // Refresh list tiap 5 detik
+  setInterval(loadPending, 5000);
+  loadPending();
+
+  function updateCameraTime() {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    document.getElementById("cameraTime").textContent = `${hours}.${minutes}`;
+  }
+
+  const today = new Date();
+  const dayNames = ["Minggu","Senin","Selasa","Rabu","Kamis","Jum'at","Sabtu"];
+  const monthNames = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  const date = today.getDate();
+  const formattedDate = `${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getFullYear()}`;
+  document.getElementById("currentDate").textContent = formattedDate;
+
+  updateCameraTime();
+  setInterval(updateCameraTime, 60000);
+</script>
+</body>
+</html>
