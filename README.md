@@ -1,1 +1,1 @@
-# neuro
+# neuro computing
