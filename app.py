@@ -3,7 +3,11 @@ import cv2, time, csv, os
 from datetime import datetime
 import mediapipe as mp
 import math
+import tensorflow as tf
+from keras.preprocessing.image import load_img, img_to_array
+from tensorflow.keras.models import load_model
 
+# Setup Flask
 app = Flask(__name__)
 
 VIDEO_BACKEND = cv2.CAP_DSHOW
@@ -18,6 +22,14 @@ if not os.path.exists(ABSEN_CSV):
     with open(ABSEN_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["nama", "timestamp", "status", "emosi"])
+
+# Load pre-trained model
+model = load_model('data/trained_model_person.h5')  # Ganti dengan path model Anda jika perlu
+model.compile(
+    loss='categorical_crossentropy', 
+    optimizer=tf.keras.optimizers.SGD(learning_rate=0.0001, momentum=0.9, decay=1e-6),
+    metrics=['accuracy']
+)
 
 # Mediapipe FaceMesh
 mp_face_mesh = mp.solutions.face_mesh
@@ -37,6 +49,10 @@ RIGHT_EYE = [263, 387, 385, 362, 380, 373]
 MOUTH     = [61, 81, 311, 291, 308, 402]
 CHEEK     = 50
 MOUTH_CORNER = 61
+
+# Mendefinisikan 'folders' di luar fungsi generate_frames
+train_dir = "data/known_faces/train"
+folders = os.listdir(train_dir)  # Nama kelas (nama orang berdasarkan folder)
 
 def dist(a, b):
     return math.dist(a, b)
@@ -66,7 +82,6 @@ def predict_emotion(landmarks):
     # Netral → sisanya
     else:
         return "Netral"
-
 
 def append_absen_csv(nama, ts, status="pending", emosi="Netral"):
     with open(ABSEN_CSV, "a", newline="", encoding="utf-8") as f:
@@ -136,8 +151,15 @@ def generate_frames(camera_index):
                 cv2.putText(frame, f"Emosi: {emosi}", (x_min, y_min-10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,255), 2)
 
+                # Prediksi Nama Berdasarkan Folder
+                for folder_name in folders:
+                    folder_path = os.path.join(train_dir, folder_name)
+                    if os.path.isdir(folder_path):
+                        # Tentukan nama berdasarkan folder
+                        nama = folder_name
+                        break
+
                 # Absensi sederhana
-                nama = "Orang"
                 now = time.time()
                 last_t = last_absen_time_by_name.get(nama, 0)
                 if now - last_t >= ABSEN_COOLDOWN_SEC:
